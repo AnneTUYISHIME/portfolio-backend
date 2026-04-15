@@ -77,7 +77,9 @@ public class UploadController {
                             "folder", "portfolio/cv",
                             "public_id", "my_cv",
                             "overwrite", true,
-                            "resource_type", "auto"  // ⭐ CHANGE from "raw" to "auto"
+                            //"resource_type", "auto" , // ⭐ CHANGE from "raw" to "auto"
+                            "resource_type", "image",   // ✅ VERY IMPORTANT
+                            "format", "pdf"         // ✅ VERY IMPORTANT
                     )
             );
 
