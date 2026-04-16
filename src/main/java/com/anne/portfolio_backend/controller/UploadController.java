@@ -23,6 +23,9 @@ public class UploadController {
     @Value("${admin.password}")
     private String adminPassword;
 
+    // ⭐ THIS STORES CV URL IN MEMORY (NO DATABASE NEEDED)
+    private static String latestCvUrl = "";
+
     // ================= PROFILE PICTURE =================
     @PostMapping(value = "/profile", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Map<String, String>> uploadProfile(
@@ -43,7 +46,7 @@ public class UploadController {
                             "folder", "portfolio/profile",
                             "public_id", "profile_picture",
                             "overwrite", true,
-                            "resource_type", "auto"   // ⭐ VERY IMPORTANT FIX
+                            "resource_type", "auto"
                     )
             );
 
@@ -58,41 +61,43 @@ public class UploadController {
     }
 
     // ================= CV UPLOAD =================
-    @PostMapping(value = "/cv", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<Map<String, String>> uploadCV(
-            @RequestParam("file") MultipartFile file,
-            @RequestParam("password") String password) {
 
-        Map<String, String> response = new HashMap<>();
 
-        if (!password.equals(adminPassword)) {
-            response.put("message", "Unauthorized! Wrong password.");
-            return ResponseEntity.status(401).body(response);
-        }
+@PostMapping(value = "/cv", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+public ResponseEntity<Map<String, String>> uploadCV(
+        @RequestParam("file") MultipartFile file,
+        @RequestParam("password") String password) {
 
-        try {
-            Map uploadResult = cloudinary.uploader().upload(
-                    file.getBytes(),
-                    ObjectUtils.asMap(
-                            "folder", "portfolio/cv",
-                            "public_id", "my_cv",
-                            "overwrite", true,
-                            //"resource_type", "auto" , // ⭐ CHANGE from "raw" to "auto"
-                            "resource_type", "image",   // ✅ VERY IMPORTANT
-                            "format", "pdf"         // ✅ VERY IMPORTANT
-                    )
-            );
+    Map<String, String> response = new HashMap<>();
 
-            response.put("url", uploadResult.get("secure_url").toString());
-            response.put("message", "CV uploaded successfully!");
-            return ResponseEntity.ok(response);
-
-        } catch (Exception e) {
-            response.put("message", "Upload failed: " + e.getMessage());
-            return ResponseEntity.status(500).body(response);
-        }
+    if (!password.equals(adminPassword)) {
+        response.put("message", "Unauthorized! Wrong password.");
+        return ResponseEntity.status(401).body(response);
     }
 
+    try {
+        Map uploadResult = cloudinary.uploader().upload(
+                file.getBytes(),
+                ObjectUtils.asMap(
+                        "folder", "portfolio/cv",
+                        "public_id", "my_cv",
+                        "resource_type", "auto",   // ⭐ THE REAL FIX
+                        "overwrite", true
+                )
+        );
+
+        // ⭐ USE EXACT URL FROM CLOUDINARY
+        String url = uploadResult.get("secure_url").toString();
+
+        response.put("url", url);
+        response.put("message", "CV uploaded successfully!");
+        return ResponseEntity.ok(response);
+
+    } catch (Exception e) {
+        response.put("message", "Upload failed: " + e.getMessage());
+        return ResponseEntity.status(500).body(response);
+    }
+}
     // ================= GET PROFILE URL =================
     @GetMapping("/profile-url")
     public ResponseEntity<Map<String, String>> getProfileUrl() {
@@ -105,15 +110,24 @@ public class UploadController {
     }
 
     // ================= GET CV URL =================
-    @GetMapping("/cv-url")
-    public ResponseEntity<Map<String, String>> getCvUrl() {
-        Map<String, String> response = new HashMap<>();
-        response.put("url",
-                "https://res.cloudinary.com/" +
-                        cloudinary.config.cloudName +
-                        "/raw/upload/portfolio/cv/my_cv");
-        return ResponseEntity.ok(response);
-    }
+ @GetMapping("/cv-url")
+public ResponseEntity<Map<String, String>> getCvUrl() throws Exception {
+
+    Map resource = cloudinary.api().resource(
+            "portfolio/cv/my_cv",
+            ObjectUtils.asMap("resource_type", "image")
+    );
+
+    String secureUrl = resource.get("secure_url").toString();
+
+    // insert fl_attachment to force download
+    String downloadUrl = secureUrl.replace("/upload/", "/upload/fl_attachment/");
+
+    Map<String, String> response = new HashMap<>();
+    response.put("url", downloadUrl);
+
+    return ResponseEntity.ok(response);
+}
 
     @GetMapping("/test")
     public String test() {
